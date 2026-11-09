@@ -84,15 +84,15 @@ if(id==="store"){const catalog=[{name:"Penguin Notes",desc:"A tiny pretend notes
 if(id==="settings"){q("#accentColor").oninput=e=>document.documentElement.style.setProperty("--accent",e.target.value);q("#wallpaper").onchange=e=>{const b=$("#desktop");b.style.background=e.target.value==="green"?"radial-gradient(ellipse at 20% 20%,#14532d,transparent 45%),linear-gradient(135deg,#020617,#052e16)":e.target.value==="sunset"?"radial-gradient(ellipse at 70% 70%,#f97316,transparent 40%),linear-gradient(135deg,#312e81,#831843)":e.target.value==="dark"?"#111827":"radial-gradient(ellipse at 18% 20%,#4c1d95,transparent 35%),radial-gradient(ellipse at 82% 72%,#075985,transparent 38%),linear-gradient(135deg,#111827,#172554 55%,#111827)"};q("#resetSettings").onclick=()=>{document.documentElement.style.setProperty("--accent","#8b5cf6");q("#accentColor").value="#8b5cf6";q("#wallpaper").value="purple";q("#wallpaper").dispatchEvent(new Event("change"));toast("Settings reset")}}
 if(id==="games"){
 const canvas=q("#gameCanvas"),ctx=canvas.getContext("2d"),info=q("#gameInfo"),help=q("#gameHelp");
-let mode="blocks",level=1,blocks=[],platforms=[],targets=[],exitPoint={x:535,y:290},player={x:45,y:280,vx:0,vy:0,on:false},keys={},collected=0,monster={x:500,y:150},frame=0,raf=0;
+let mode="blocks",level=1,blocks=[],platforms=[],targets=[],exitPoint={x:535,y:290},player={x:45,y:280,vx:0,vy:0,on:false},keys={},collected=0,monster={x:500,y:150},frame=0,raf=0,caught=false;
 const W=640,H=360;
 function randomFor(n){const v=Math.sin(n*127.1+level*311.7)*43758.5453;return v-Math.floor(v)}
 function makeTerrain(){return Array.from({length:20},(_,x)=>{const height=5+Math.floor(randomFor(x+level*31)*3);return Array.from({length:9},(_,y)=>y>=height?1:0)})}
 function makePlatforms(){const xs=[0,105,195,285,375,465,555],out=[];let y=320;xs.forEach((x,i)=>{if(i>0)y=Math.max(115,Math.min(315,y+Math.floor((randomFor(i*9+level*17)-.5)*86)));out.push([x,y,i===0?130:(i===6?85:90+Math.floor(randomFor(i+level*5)*18)),18])});return out}
 function makeTargets(){const points=[];for(let i=0;i<3;i++){const x=125+Math.floor(randomFor(i*13+level*7)*390),y=115+Math.floor(randomFor(i*23+level*11)*175);points.push([x,y])}return points}
 function makeExit(){return {x:490+Math.floor(randomFor(99+level)*45),y:270+Math.floor(randomFor(77+level)*35)}}
-function reset(){blocks=makeTerrain();platforms=makePlatforms();targets=makeTargets();exitPoint=makeExit();player={x:45,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;draw()}
-function nextLevel(){level++;player={x:35,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;if(mode==="blocks")blocks=makeTerrain();if(mode==="obby")platforms=makePlatforms();if(mode==="night"){targets=makeTargets();exitPoint=makeExit()}toast("NEW LEVEL "+level+" — NEW LAYOUT!");draw()}
+function reset(){blocks=makeTerrain();platforms=makePlatforms();targets=makeTargets();exitPoint=makeExit();player={x:45,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;caught=false;draw()}
+function nextLevel(){level++;player={x:35,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;caught=false;if(mode==="blocks")blocks=makeTerrain();if(mode==="obby")platforms=makePlatforms();if(mode==="night"){targets=makeTargets();exitPoint=makeExit()}toast("NEW LEVEL "+level+" — NEW LAYOUT!");draw()}
 function choose(m){mode=m;level=1;reset();if(m==="blocks"){info.textContent="BlockWorld — Island 1";help.textContent="Build with clicks. Click the purple portal on the right to travel to a newly generated island."}if(m==="obby"){info.textContent="BloxHop — Level 1";help.textContent="Move with A/D or ←/→. Jump with W, ↑, or Space. Reach the gold goal. Every stage has a new platform layout."}if(m==="night"){info.textContent="Night Shift — Level 1";help.textContent="Move with WASD or arrow keys. Collect all 3 keycards, then find the exit. Rooms change every level."}w.querySelectorAll("[data-game]").forEach(b=>{b.className=b.dataset.game===m?"action":"secondary"})}
 function draw(){
 ctx.clearRect(0,0,W,H);
@@ -111,7 +111,7 @@ ctx.strokeStyle="#64748b";ctx.lineWidth=3;for(let i=0;i<5;i++){const x=110+rando
 ctx.fillStyle="#facc15";targets.slice(collected).forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],8,0,Math.PI*2);ctx.fill()});
 ctx.fillStyle="#22c55e";ctx.fillRect(exitPoint.x,exitPoint.y,24,34);ctx.fillStyle="#f8fafc";ctx.font="13px system-ui";ctx.fillText("EXIT",exitPoint.x-2,exitPoint.y-6);ctx.fillStyle="#60a5fa";ctx.fillRect(player.x,player.y,20,20);ctx.fillStyle="#94a3b8";ctx.beginPath();ctx.arc(monster.x,monster.y,13,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("NIGHT SHIFT • LEVEL "+level+" • KEYS "+collected+"/3",14,24);
 if(Math.hypot(player.x-exitPoint.x,player.y-exitPoint.y)<25&&collected===3){ctx.fillStyle="#bbf7d0";ctx.font="bold 24px system-ui";ctx.fillText("LEVEL COMPLETE!",215,180)}
-if(Math.hypot(player.x-monster.x,player.y-monster.y)<23){ctx.fillStyle="#fecaca";ctx.font="bold 22px system-ui";ctx.fillText("CAUGHT! Press Restart",190,180)}
+if(caught){ctx.fillStyle="#fecaca";ctx.font="bold 25px system-ui";ctx.textAlign="center";ctx.fillText("CAUGHT!",W/2,165);ctx.font="15px system-ui";ctx.fillStyle="#fff";ctx.fillText("You are frozen. Press Restart to try again.",W/2,195);ctx.textAlign="left"}
 }
 }
 function tick(){
@@ -120,10 +120,11 @@ player.vx=(keys.ArrowRight||keys.d||keys.D?3:0)-(keys.ArrowLeft||keys.a||keys.A?
 platforms.forEach(p=>{if(player.x+22>p[0]&&player.x<p[0]+p[2]&&player.y+28>=p[1]&&player.y+28<=p[1]+12&&player.vy>=0){player.y=p[1]-28;player.vy=0;player.on=true}});
 const goal=platforms[platforms.length-1];if(player.x>goal[0]+goal[2]-38&&player.on&&player.y<goal[1])nextLevel();
 }
-if(mode==="night"){
+if(mode==="night"&&!caught){
 const speed=2.5;player.x=Math.max(85,Math.min(540,player.x+((keys.ArrowRight||keys.d||keys.D?1:0)-(keys.ArrowLeft||keys.a||keys.A?1:0))*speed));player.y=Math.max(90,Math.min(320,player.y+((keys.ArrowDown||keys.s||keys.S?1:0)-(keys.ArrowUp||keys.w||keys.W?1:0))*speed));
 if(collected<3&&Math.hypot(player.x-targets[collected][0],player.y-targets[collected][1])<22)collected++;
 if(frame%3===0){const speedUp=Math.min(1.15,.38+level*.035);monster.x+=Math.sign(player.x-monster.x)*speedUp;monster.y+=Math.sign(player.y-monster.y)*speedUp}
+if(Math.hypot(player.x-monster.x,player.y-monster.y)<23)caught=true;
 if(collected===3&&Math.hypot(player.x-exitPoint.x,player.y-exitPoint.y)<25)nextLevel();
 }
 frame++;draw();raf=requestAnimationFrame(tick)
