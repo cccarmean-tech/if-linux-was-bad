@@ -84,44 +84,47 @@ if(id==="store"){const catalog=[{name:"Penguin Notes",desc:"A tiny pretend notes
 if(id==="settings"){q("#accentColor").oninput=e=>document.documentElement.style.setProperty("--accent",e.target.value);q("#wallpaper").onchange=e=>{const b=$("#desktop");b.style.background=e.target.value==="green"?"radial-gradient(ellipse at 20% 20%,#14532d,transparent 45%),linear-gradient(135deg,#020617,#052e16)":e.target.value==="sunset"?"radial-gradient(ellipse at 70% 70%,#f97316,transparent 40%),linear-gradient(135deg,#312e81,#831843)":e.target.value==="dark"?"#111827":"radial-gradient(ellipse at 18% 20%,#4c1d95,transparent 35%),radial-gradient(ellipse at 82% 72%,#075985,transparent 38%),linear-gradient(135deg,#111827,#172554 55%,#111827)"};q("#resetSettings").onclick=()=>{document.documentElement.style.setProperty("--accent","#8b5cf6");q("#accentColor").value="#8b5cf6";q("#wallpaper").value="purple";q("#wallpaper").dispatchEvent(new Event("change"));toast("Settings reset")}}
 if(id==="games"){
 const canvas=q("#gameCanvas"),ctx=canvas.getContext("2d"),info=q("#gameInfo"),help=q("#gameHelp");
-let mode="blocks",level=1,blocks=[],player={x:45,y:280,vx:0,vy:0,on:false},keys={},collected=0,monster={x:500,y:150},frame=0,raf=0;
+let mode="blocks",level=1,blocks=[],platforms=[],targets=[],exitPoint={x:535,y:290},player={x:45,y:280,vx:0,vy:0,on:false},keys={},collected=0,monster={x:500,y:150},frame=0,raf=0;
 const W=640,H=360;
-function getPlatforms(){return [[0,325,130,35],[145+(level*23)%35,290-(level%3)*4,95,18],[285+(level*31)%40,238-(level%4)*5,95,18],[420+(level*19)%35,184-(level%5)*4,90,18],[555,126-(level%3)*4,85,18]]}
-function nightTargets(){return [[145+(level*13)%35,125+(level*7)%25],[405+(level*17)%35,250-(level%3)*12],[485-(level*11)%30,125+(level%4)*12]]}
-function reset(){blocks=Array.from({length:20},(_,x)=>Array.from({length:9},(_,y)=>y>5?1:0));player={x:45,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;draw()}
-function nextLevel(){level++;player={x:45,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;if(mode==="blocks")blocks=Array.from({length:20},(_,x)=>Array.from({length:9},(_,y)=>y>5?1:0));toast("LEVEL "+level+" UNLOCKED!");draw()}
-function choose(m){mode=m;level=1;reset();if(m==="blocks"){info.textContent="BlockWorld — Island 1";help.textContent="Build with clicks. Find the glowing purple portal on the right and click it to reach the next island."}if(m==="obby"){info.textContent="BloxHop — Level 1";help.textContent="Move with A/D or ←/→. Jump with W, ↑, or Space. Reach the gold goal to unlock the next level."}if(m==="night"){info.textContent="Night Shift — Level 1";help.textContent="Move with WASD or arrow keys. Collect all 3 keycards, then reach the green exit. Each level gets tougher."}w.querySelectorAll("[data-game]").forEach(b=>{b.className=b.dataset.game===m?"action":"secondary"})}
+function randomFor(n){const v=Math.sin(n*127.1+level*311.7)*43758.5453;return v-Math.floor(v)}
+function makeTerrain(){return Array.from({length:20},(_,x)=>{const height=5+Math.floor(randomFor(x+level*31)*3);return Array.from({length:9},(_,y)=>y>=height?1:0)})}
+function makePlatforms(){const xs=[0,105,195,285,375,465,555],out=[];let y=320;xs.forEach((x,i)=>{if(i>0)y=Math.max(115,Math.min(315,y+Math.floor((randomFor(i*9+level*17)-.5)*86)));out.push([x,y,i===0?130:(i===6?85:90+Math.floor(randomFor(i+level*5)*18)),18])});return out}
+function makeTargets(){const points=[];for(let i=0;i<3;i++){const x=125+Math.floor(randomFor(i*13+level*7)*390),y=115+Math.floor(randomFor(i*23+level*11)*175);points.push([x,y])}return points}
+function makeExit(){return {x:490+Math.floor(randomFor(99+level)*45),y:270+Math.floor(randomFor(77+level)*35)}}
+function reset(){blocks=makeTerrain();platforms=makePlatforms();targets=makeTargets();exitPoint=makeExit();player={x:45,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;draw()}
+function nextLevel(){level++;player={x:35,y:280,vx:0,vy:0,on:false};collected=0;monster={x:500,y:150};frame=0;if(mode==="blocks")blocks=makeTerrain();if(mode==="obby")platforms=makePlatforms();if(mode==="night"){targets=makeTargets();exitPoint=makeExit()}toast("NEW LEVEL "+level+" — NEW LAYOUT!");draw()}
+function choose(m){mode=m;level=1;reset();if(m==="blocks"){info.textContent="BlockWorld — Island 1";help.textContent="Build with clicks. Click the purple portal on the right to travel to a newly generated island."}if(m==="obby"){info.textContent="BloxHop — Level 1";help.textContent="Move with A/D or ←/→. Jump with W, ↑, or Space. Reach the gold goal. Every stage has a new platform layout."}if(m==="night"){info.textContent="Night Shift — Level 1";help.textContent="Move with WASD or arrow keys. Collect all 3 keycards, then find the exit. Rooms change every level."}w.querySelectorAll("[data-game]").forEach(b=>{b.className=b.dataset.game===m?"action":"secondary"})}
 function draw(){
 ctx.clearRect(0,0,W,H);
 if(mode==="blocks"){
-const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#60a5fa");sky.addColorStop(1,"#dbeafe");ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
-for(let x=0;x<20;x++)for(let y=0;y<9;y++){if(blocks[x][y]){ctx.fillStyle=y===6?"#65a30d":y===7?"#854d0e":"#64748b";ctx.fillRect(x*32,y*32,31,31);ctx.strokeStyle="#ffffff35";ctx.strokeRect(x*32,y*32,31,31)}else{ctx.strokeStyle="#ffffff28";ctx.strokeRect(x*32,y*32,32,32)}}
-ctx.fillStyle="#14532d";ctx.fillRect(0,320,W,40);ctx.fillStyle="#a855f7";ctx.fillRect(18*32+5,4*32+5,22,22);ctx.strokeStyle="#f5d0fe";ctx.lineWidth=3;ctx.strokeRect(18*32+5,4*32+5,22,22);ctx.lineWidth=1;ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("BLOCKWORLD • ISLAND "+level,14,22);ctx.fillText("CLICK PURPLE PORTAL →",440,22);
+const skies=[["#60a5fa","#dbeafe"],["#fda4af","#fef3c7"],["#7dd3fc","#dcfce7"],["#a78bfa","#312e81"]],palette=skies[(level-1)%skies.length],sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,palette[0]);sky.addColorStop(1,palette[1]);ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+for(let x=0;x<20;x++)for(let y=0;y<9;y++){if(blocks[x][y]){ctx.fillStyle=y===5?"#65a30d":y===6?"#854d0e":y===7?"#64748b":"#475569";ctx.fillRect(x*32,y*32,31,31);ctx.strokeStyle="#ffffff35";ctx.strokeRect(x*32,y*32,31,31)}else{ctx.strokeStyle="#ffffff28";ctx.strokeRect(x*32,y*32,32,32)}}
+ctx.fillStyle="#14532d";ctx.fillRect(0,320,W,40);ctx.fillStyle="#a855f7";ctx.fillRect(18*32+5,4*32+5,22,22);ctx.strokeStyle="#f5d0fe";ctx.lineWidth=3;ctx.strokeRect(18*32+5,4*32+5,22,22);ctx.lineWidth=1;ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("BLOCKWORLD • ISLAND "+level,14,22);ctx.fillText("PURPLE PORTAL →",460,22);ctx.fillStyle="#fef08a";for(let i=0;i<5;i++){const x=25+randomFor(i+level*3)*580,y=45+randomFor(i+level*8)*100;ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill()}
 }else if(mode==="obby"){
-ctx.fillStyle="#172554";ctx.fillRect(0,0,W,H);ctx.fillStyle="#38bdf8";ctx.fillRect(0,0,W,190);ctx.fillStyle="#fbbf24";ctx.fillRect(570,80,42,42);ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("BLOXHOP • LEVEL "+level,14,24);
-const plats=getPlatforms();plats.forEach(p=>{ctx.fillStyle="#a78bfa";ctx.fillRect(...p);ctx.fillStyle="#ddd6fe";ctx.fillRect(p[0],p[1],p[2],5)});
-ctx.fillStyle="#f97316";ctx.fillRect(player.x,player.y,22,28);ctx.fillStyle="#111827";ctx.fillRect(player.x+5,player.y+7,4,4);ctx.fillRect(player.x+14,player.y+7,4,4);
-if(player.x>550&&player.y<145){ctx.fillStyle="#bbf7d0";ctx.font="bold 25px system-ui";ctx.fillText("LEVEL COMPLETE!",220,70);ctx.font="14px system-ui";ctx.fillText("Loading next stage...",250,95)}
+ctx.fillStyle=["#172554","#312e81","#164e63","#3f1d2e","#1f2937"][(level-1)%5];ctx.fillRect(0,0,W,H);ctx.fillStyle=["#38bdf8","#f0abfc","#67e8f9","#fb7185","#94a3b8"][(level-1)%5];ctx.fillRect(0,0,W,190);ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("BLOXHOP • LEVEL "+level,14,24);
+platforms.forEach((p,i)=>{ctx.fillStyle=i===platforms.length-1?"#fbbf24":"#a78bfa";ctx.fillRect(...p);ctx.fillStyle="#ddd6fe";ctx.fillRect(p[0],p[1],p[2],5)});
+const goal=platforms[platforms.length-1];ctx.fillStyle="#fbbf24";ctx.fillRect(goal[0]+goal[2]-28,goal[1]-42,24,38);ctx.fillStyle="#f97316";ctx.fillRect(player.x,player.y,22,28);ctx.fillStyle="#111827";ctx.fillRect(player.x+5,player.y+7,4,4);ctx.fillRect(player.x+14,player.y+7,4,4);
 if(player.y>H){ctx.fillStyle="#fecaca";ctx.font="bold 24px system-ui";ctx.fillText("FELL! Press Restart",205,170)}
 }else{
-ctx.fillStyle="#111827";ctx.fillRect(0,0,W,H);ctx.fillStyle="#1f2937";for(let x=10;x<W;x+=80)ctx.fillRect(x,0,4,H);for(let y=10;y<H;y+=70)ctx.fillRect(0,y,W,4);ctx.fillStyle="#334155";ctx.fillRect(65,65,510,230);ctx.fillStyle="#0f172a";ctx.fillRect(90,90,460,250);
-ctx.fillStyle="#facc15";nightTargets().slice(collected).forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],8,0,Math.PI*2);ctx.fill()});
-ctx.fillStyle="#22c55e";ctx.fillRect(535,290,24,34);ctx.fillStyle="#f8fafc";ctx.font="13px system-ui";ctx.fillText("EXIT",530,285);ctx.fillStyle="#60a5fa";ctx.fillRect(player.x,player.y,20,20);ctx.fillStyle="#94a3b8";ctx.beginPath();ctx.arc(monster.x,monster.y,13,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("NIGHT SHIFT • LEVEL "+level+" • KEYS "+collected+"/3",14,24);
-if(collected===3&&player.x>520&&player.y>270){ctx.fillStyle="#bbf7d0";ctx.font="bold 24px system-ui";ctx.fillText("LEVEL COMPLETE!",215,180)}
+const themes=[["#111827","#334155","#0f172a"],["#172554","#1e40af","#0c1a36"],["#292014","#575044","#17130e"],["#1c1029","#55316d","#10091a"]],theme=themes[(level-1)%themes.length];ctx.fillStyle=theme[0];ctx.fillRect(0,0,W,H);ctx.fillStyle=theme[1];ctx.fillRect(65,65,510,230);ctx.fillStyle=theme[2];ctx.fillRect(90,90,460,250);
+ctx.strokeStyle="#64748b";ctx.lineWidth=3;for(let i=0;i<5;i++){const x=110+randomFor(i+level*5)*410,y=110+randomFor(i+level*9)*190;ctx.strokeRect(x,y,22,22)}
+ctx.fillStyle="#facc15";targets.slice(collected).forEach(p=>{ctx.beginPath();ctx.arc(p[0],p[1],8,0,Math.PI*2);ctx.fill()});
+ctx.fillStyle="#22c55e";ctx.fillRect(exitPoint.x,exitPoint.y,24,34);ctx.fillStyle="#f8fafc";ctx.font="13px system-ui";ctx.fillText("EXIT",exitPoint.x-2,exitPoint.y-6);ctx.fillStyle="#60a5fa";ctx.fillRect(player.x,player.y,20,20);ctx.fillStyle="#94a3b8";ctx.beginPath();ctx.arc(monster.x,monster.y,13,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="14px system-ui";ctx.fillText("NIGHT SHIFT • LEVEL "+level+" • KEYS "+collected+"/3",14,24);
+if(Math.hypot(player.x-exitPoint.x,player.y-exitPoint.y)<25&&collected===3){ctx.fillStyle="#bbf7d0";ctx.font="bold 24px system-ui";ctx.fillText("LEVEL COMPLETE!",215,180)}
 if(Math.hypot(player.x-monster.x,player.y-monster.y)<23){ctx.fillStyle="#fecaca";ctx.font="bold 22px system-ui";ctx.fillText("CAUGHT! Press Restart",190,180)}
 }
 }
 function tick(){
 if(mode==="obby"){
 player.vx=(keys.ArrowRight||keys.d||keys.D?3:0)-(keys.ArrowLeft||keys.a||keys.A?3:0);player.x=Math.max(0,Math.min(615,player.x+player.vx));player.vy+=.48;player.y+=player.vy;player.on=false;
-getPlatforms().forEach(p=>{if(player.x+22>p[0]&&player.x<p[0]+p[2]&&player.y+28>=p[1]&&player.y+28<=p[1]+12&&player.vy>=0){player.y=p[1]-28;player.vy=0;player.on=true}});
-if(player.x>550&&player.y<145)nextLevel();
+platforms.forEach(p=>{if(player.x+22>p[0]&&player.x<p[0]+p[2]&&player.y+28>=p[1]&&player.y+28<=p[1]+12&&player.vy>=0){player.y=p[1]-28;player.vy=0;player.on=true}});
+const goal=platforms[platforms.length-1];if(player.x>goal[0]+goal[2]-38&&player.on&&player.y<goal[1])nextLevel();
 }
 if(mode==="night"){
 const speed=2.5;player.x=Math.max(85,Math.min(540,player.x+((keys.ArrowRight||keys.d||keys.D?1:0)-(keys.ArrowLeft||keys.a||keys.A?1:0))*speed));player.y=Math.max(90,Math.min(320,player.y+((keys.ArrowDown||keys.s||keys.S?1:0)-(keys.ArrowUp||keys.w||keys.W?1:0))*speed));
-const targets=nightTargets();if(collected<3&&Math.hypot(player.x-targets[collected][0],player.y-targets[collected][1])<22)collected++;
-if(frame%3===0){const speedUp=Math.min(.95,.42+level*.025);monster.x+=Math.sign(player.x-monster.x)*speedUp;monster.y+=Math.sign(player.y-monster.y)*speedUp}
-if(collected===3&&player.x>520&&player.y>270)nextLevel();
+if(collected<3&&Math.hypot(player.x-targets[collected][0],player.y-targets[collected][1])<22)collected++;
+if(frame%3===0){const speedUp=Math.min(1.15,.38+level*.035);monster.x+=Math.sign(player.x-monster.x)*speedUp;monster.y+=Math.sign(player.y-monster.y)*speedUp}
+if(collected===3&&Math.hypot(player.x-exitPoint.x,player.y-exitPoint.y)<25)nextLevel();
 }
 frame++;draw();raf=requestAnimationFrame(tick)
 }
